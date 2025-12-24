@@ -56,40 +56,6 @@
             transition: opacity 0.5s ease; /* Ensure smooth transitions if needed */
         }
 
-        /* Upload Button - Restored & Elegant */
-        .upload-wrapper {
-            margin-top: 20px;
-            pointer-events: auto;
-            text-align: center;
-            transition: opacity 0.5s ease; /* Add transition for smooth hiding */
-        }
-        .upload-btn {
-            background: rgba(20, 20, 20, 0.6); 
-            border: 1px solid rgba(212, 175, 55, 0.4); 
-            color: #d4af37; 
-            padding: 10px 25px; 
-            cursor: pointer; 
-            text-transform: uppercase; 
-            letter-spacing: 3px; 
-            font-size: 10px;
-            transition: all 0.4s;
-            display: inline-block;
-            backdrop-filter: blur(5px);
-        }
-        .upload-btn:hover { 
-            background: #d4af37; 
-            color: #000; 
-            box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
-        }
-        .hint-text {
-            color: rgba(212, 175, 55, 0.5);
-            font-size: 9px;
-            margin-top: 8px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        #file-input { display: none; }
 
         /* Webcam feedback */
         #webcam-wrapper {
@@ -147,14 +113,6 @@
 
     <div id="ui-layer">
         <h1></h1>
-        
-        <div class="upload-wrapper">
-            <label class="upload-btn">
-                Thêm ảnh
-                <input type="file" id="file-input" multiple accept="image/*">
-            </label>
-            <div class="hint-text">Nhấn phím 'H' để ẩn các nút điều khiển</div>
-        </div>
     </div>
 
     <!-- HTTPS Warning -->
@@ -186,8 +144,9 @@
                 accentRed: 0x990000,     
             },
             particles: {
-                count: 1500,     
+                count: 2000,     // Increased for more blocks
                 dustCount: 2500, 
+                snowCount: 1200, // Snowflakes falling in background (more for winter effect)
                 treeHeight: 24,  
                 treeRadius: 8    
             },
@@ -209,6 +168,7 @@
         let clock = new THREE.Clock();
         let particleSystem = []; 
         let photoMeshGroup = new THREE.Group();
+        let snowSystem = []; // Snow particles for falling effect
         let handLandmarker, video, webcamCanvas, webcamCtx;
         let caneTexture; 
 
@@ -218,7 +178,8 @@
             setupLights();
             createTextures();
             createParticles(); 
-            createDust();     
+            createDust();
+            createSnow();     // Create falling snow effect
             setupPostProcessing();
             setupEvents();
             await initMediaPipe();
@@ -242,8 +203,14 @@
             camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 2, CONFIG.camera.z); 
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true, 
+                alpha: false, 
+                powerPreference: "high-performance",
+                preserveDrawingBuffer: true // Better for texture quality
+            });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            // Use full pixel ratio for better image quality (up to 2x for performance)
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.toneMapping = THREE.ReinhardToneMapping; 
             renderer.toneMappingExposure = 2.2; 
@@ -398,11 +365,26 @@
                     s = this.baseScale * (0.8 + 0.4 * Math.sin(clock.elapsedTime * 4 + this.mesh.id));
                     if (mode === 'TREE') s = 0; 
                 } else if (mode === 'SCATTER' && this.type === 'PHOTO') {
-                    // Large preview size in scatter
+                    // Large preview size in scatter - maintain quality
                     s = this.baseScale * 2.5; 
                 } else if (mode === 'FOCUS') {
-                    if (this.mesh === focusTargetMesh) s = 4.5; 
-                    else s = this.baseScale * 0.8; 
+                    if (this.mesh === focusTargetMesh) {
+                        // Enhanced zoom for photos - larger but maintain quality
+                        s = 4.5;
+                        // Ensure texture quality is maintained at high zoom
+                        if (this.mesh.children && this.mesh.children.length > 0) {
+                            const photoMesh = this.mesh.children.find(child => child.material && child.material.map);
+                            if (photoMesh && photoMesh.material.map) {
+                                photoMesh.material.map.generateMipmaps = true;
+                                photoMesh.material.map.minFilter = THREE.LinearMipmapLinearFilter;
+                                photoMesh.material.map.magFilter = THREE.LinearFilter;
+                                photoMesh.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                photoMesh.material.map.needsUpdate = true;
+                            }
+                        }
+                    } else {
+                        s = this.baseScale * 0.8; 
+                    }
                 }
                 
                 this.mesh.scale.lerp(new THREE.Vector3(s,s,s), 4*dt);
@@ -428,10 +410,10 @@
             });
 
             const greenMat = new THREE.MeshStandardMaterial({
-                color: CONFIG.colors.deepGreen,
-                metalness: 0.2, roughness: 0.8,
-                emissive: 0x002200,
-                emissiveIntensity: 0.2 
+                color: 0x0a5a1a, // Brighter green for better visibility
+                metalness: 0.3, roughness: 0.7,
+                emissive: 0x003300, // More visible green glow
+                emissiveIntensity: 0.4 // Increased glow
             });
 
             const redMat = new THREE.MeshPhysicalMaterial({
@@ -446,16 +428,17 @@
                 const rand = Math.random();
                 let mesh, type;
                 
-                if (rand < 0.40) {
+                // Much more green blocks - 75% green boxes
+                if (rand < 0.75) {
                     mesh = new THREE.Mesh(boxGeo, greenMat);
                     type = 'BOX';
-                } else if (rand < 0.70) {
+                } else if (rand < 0.85) {
                     mesh = new THREE.Mesh(boxGeo, goldMat);
                     type = 'GOLD_BOX';
-                } else if (rand < 0.92) {
+                } else if (rand < 0.95) {
                     mesh = new THREE.Mesh(sphereGeo, goldMat);
                     type = 'GOLD_SPHERE';
-                } else if (rand < 0.97) {
+                } else if (rand < 0.98) {
                     mesh = new THREE.Mesh(sphereGeo, redMat);
                     type = 'RED';
                 } else {
@@ -494,13 +477,74 @@
                  particleSystem.push(new Particle(mesh, 'DUST', true));
             }
         }
+
+        // Create falling snow effect in background
+        function createSnow() {
+            // Create snowflake geometry - small spheres for simple snowflakes
+            const snowGeo = new THREE.SphereGeometry(0.08, 6, 6);
+            
+            for(let i = 0; i < CONFIG.particles.snowCount; i++) {
+                // Each snowflake gets its own material for opacity variation
+                const opacity = 0.6 + Math.random() * 0.4; // 0.6 to 1.0 opacity
+                const snowMat = new THREE.MeshBasicMaterial({ 
+                    color: 0xffffff, 
+                    transparent: true, 
+                    opacity: opacity,
+                    side: THREE.DoubleSide,
+                    fog: true // Affected by scene fog for depth
+                });
+                
+                const snowflake = new THREE.Mesh(snowGeo, snowMat);
+                
+                // Random starting position across screen width and above camera
+                const startX = (Math.random() - 0.5) * 120; // Wide spread
+                const startY = Math.random() * 60 + 40; // Start above view
+                const startZ = (Math.random() - 0.5) * 120; // Depth spread
+                
+                snowflake.position.set(startX, startY, startZ);
+                
+                // Random size variation (smaller snowflakes)
+                const size = 0.4 + Math.random() * 0.8;
+                snowflake.scale.setScalar(size);
+                
+                // Random fall speed and movement
+                snowflake.userData = {
+                    fallSpeed: 1.5 + Math.random() * 2.5, // Fall speed variation
+                    driftSpeed: (Math.random() - 0.5) * 0.8, // Horizontal drift (wind effect)
+                    rotationSpeed: (Math.random() - 0.5) * 3, // Rotation
+                    opacity: opacity // Store original opacity
+                };
+                
+                // Add to scene (not mainGroup) so snow doesn't rotate with tree
+                // Render order: snow should be behind tree
+                snowflake.renderOrder = -1;
+                scene.add(snowflake);
+                snowSystem.push(snowflake);
+            }
+        }
         function addPhotoToScene(texture) {
-            const frameGeo = new THREE.BoxGeometry(1.4, 1.4, 0.05);
+            // Enhance texture quality - prevent pixelation
+            texture.generateMipmaps = true;
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.flipY = false; // Prevent texture flipping
+            
+            // Calculate aspect ratio to maintain image proportions
+            const aspectRatio = texture.image.width / texture.image.height;
+            const baseSize = 1.2;
+            const photoWidth = aspectRatio >= 1 ? baseSize : baseSize * aspectRatio;
+            const photoHeight = aspectRatio >= 1 ? baseSize / aspectRatio : baseSize;
+            
+            const frameGeo = new THREE.BoxGeometry(photoWidth + 0.2, photoHeight + 0.2, 0.05);
             const frameMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.champagneGold, metalness: 1.0, roughness: 0.1 });
             const frame = new THREE.Mesh(frameGeo, frameMat);
 
-            const photoGeo = new THREE.PlaneGeometry(1.2, 1.2);
-            const photoMat = new THREE.MeshBasicMaterial({ map: texture });
+            const photoGeo = new THREE.PlaneGeometry(photoWidth, photoHeight);
+            const photoMat = new THREE.MeshBasicMaterial({ 
+                map: texture,
+                side: THREE.DoubleSide // Show from both sides
+            });
             const photo = new THREE.Mesh(photoGeo, photoMat);
             photo.position.z = 0.04;
 
@@ -514,50 +558,132 @@
             photoMeshGroup.add(group);
             particleSystem.push(new Particle(group, 'PHOTO', false));
         }
-        
-        function handleImageUpload(e) {
-            const files = e.target.files;
-            if(!files.length) return;
-            Array.from(files).forEach(f => {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    new THREE.TextureLoader().load(ev.target.result, (t) => {
-                        t.colorSpace = THREE.SRGBColorSpace;
-                        addPhotoToScene(t);
-                    });
-                }
-                reader.readAsDataURL(f);
-            });
-        }
 
-        // Auto-load images from image folder
+        // Auto-load images from image folder with enhanced quality
         async function loadDefaultImages() {
-            const imagePaths = [
-                'image/IMG_20240420_204856.jpg',
-                'image/PXL_20250804_131951191.jpg',
-                'image/PXL_20250807_040324833.jpg',
-                'image/unnamed (1) (1).jpg'
+            // Try multiple path variations to handle different server configurations
+            const basePaths = [
+                './image/',           // Same directory
+                'image/',             // Relative to HTML
+                '/image/',            // Root relative
+                '/Christmas-tree/image/', // Full path
+                '../image/'          // Parent directory
+            ];
+            
+            const imageFiles = [
+                'WIN_20240622_17_20_30_Pro.jpeg',
+                'PXL_20250208_110126589.jpeg',
+                'PXL_20250214_140729809.jpeg',
+                'PXL_20250531_022416898.jpeg',
+                'PXL_20250531_233350750.jpeg',
+                'PXL_20250804_131951191.jpg',
+                'PXL_20250807_040324833.jpg',
+                'unnamed (1) (1).jpg'
             ];
 
             const textureLoader = new THREE.TextureLoader();
             let loadedCount = 0;
+            let failedPaths = [];
 
-            imagePaths.forEach((path, index) => {
-                textureLoader.load(
-                    path,
-                    (texture) => {
-                        texture.colorSpace = THREE.SRGBColorSpace;
-                        addPhotoToScene(texture);
-                        loadedCount++;
-                        console.log(`✅ Loaded image ${index + 1}/${imagePaths.length}: ${path}`);
-                    },
-                    undefined,
-                    (error) => {
-                        console.warn(`⚠️ Failed to load image: ${path}`, error);
-                        console.log('💡 Tip: Make sure you are running a local server (see instructions below)');
+            // Show loading indicator
+            showImageStatus(`🖼️ Loading images... (0/${imageFiles.length})`);
+
+            // Try to load each image
+            for (let fileIndex = 0; fileIndex < imageFiles.length; fileIndex++) {
+                const fileName = imageFiles[fileIndex];
+                let loaded = false;
+                
+                // Try each base path
+                for (let pathIndex = 0; pathIndex < basePaths.length; pathIndex++) {
+                    const fullPath = basePaths[pathIndex] + fileName;
+                    
+                    try {
+                        await new Promise((resolve, reject) => {
+                            textureLoader.load(
+                                fullPath,
+                                (texture) => {
+                                    // Enhanced texture settings for high quality
+                                    texture.colorSpace = THREE.SRGBColorSpace;
+                                    
+                                    // High-quality filtering to prevent pixelation
+                                    texture.generateMipmaps = true;
+                                    texture.minFilter = THREE.LinearMipmapLinearFilter;
+                                    texture.magFilter = THREE.LinearFilter;
+                                    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                    texture.flipY = false;
+                                    
+                                    // Update texture after settings
+                                    texture.needsUpdate = true;
+                                    
+                                    addPhotoToScene(texture);
+                                    loadedCount++;
+                                    loaded = true;
+                                    console.log(`✅ Loaded image ${loadedCount}/${imageFiles.length}: ${fullPath} (${texture.image.width}x${texture.image.height})`);
+                                    showImageStatus(`🖼️ Loading images... (${loadedCount}/${imageFiles.length})`);
+                                    resolve();
+                                },
+                                undefined,
+                                (error) => {
+                                    // Try next path
+                                    reject(error);
+                                }
+                            );
+                        });
+                        break; // Success, move to next image
+                    } catch (err) {
+                        // Continue to next path
+                        if (pathIndex === basePaths.length - 1) {
+                            // All paths failed for this image
+                            failedPaths.push(fileName);
+                            console.warn(`⚠️ Failed to load image: ${fileName} (tried all paths)`);
+                        }
                     }
-                );
-            });
+                }
+            }
+
+            // Final status
+            if (loadedCount > 0) {
+                hideImageStatus();
+                console.log(`✅ Successfully loaded ${loadedCount}/${imageFiles.length} images`);
+            } else {
+                showImageStatus(`⚠️ No images loaded! Check that 'image/' folder exists on server.`, true);
+                console.error('❌ Failed to load all images. Make sure the image/ folder is uploaded to your server.');
+            }
+        }
+
+        function showImageStatus(message, isError = false) {
+            let statusDiv = document.getElementById('image-status');
+            if (!statusDiv) {
+                statusDiv = document.createElement('div');
+                statusDiv.id = 'image-status';
+                statusDiv.style.cssText = `
+                    position: fixed;
+                    top: 80px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: ${isError ? 'rgba(255, 100, 100, 0.95)' : 'rgba(0, 0, 0, 0.9)'};
+                    color: ${isError ? 'white' : '#ffcc66'};
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    z-index: 9998;
+                    text-align: center;
+                    font-family: 'Times New Roman', serif;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                `;
+                document.body.appendChild(statusDiv);
+            }
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+        }
+
+        function hideImageStatus() {
+            const statusDiv = document.getElementById('image-status');
+            if (statusDiv) {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 2000);
+            }
         }
 
         // --- MEDIAPIPE ---
@@ -747,15 +873,6 @@
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 composer.setSize(window.innerWidth, window.innerHeight);
             });
-            document.getElementById('file-input').addEventListener('change', handleImageUpload);
-            
-            // Toggle UI logic - ONLY hide controls, keep title
-            window.addEventListener('keydown', (e) => {
-                if (e.key.toLowerCase() === 'h') {
-                    const controls = document.querySelector('.upload-wrapper');
-                    if (controls) controls.classList.toggle('ui-hidden');
-                }
-            });
         }
 
         function animate() {
@@ -781,7 +898,68 @@
             mainGroup.rotation.x = STATE.rotation.x;
 
             particleSystem.forEach(p => p.update(dt, STATE.mode, STATE.focusTarget));
+            
+            // Update falling snow
+            updateSnow(dt);
+            
             composer.render();
+        }
+
+        // Update snow falling animation
+        function updateSnow(dt) {
+            const cameraHeight = camera.position.y;
+            const viewDistance = 60;
+            const bottomY = cameraHeight - viewDistance;
+            const topY = cameraHeight + viewDistance;
+            
+            snowSystem.forEach((snowflake) => {
+                const data = snowflake.userData;
+                
+                // Fall down (snow falls continuously)
+                snowflake.position.y -= data.fallSpeed * dt;
+                
+                // Horizontal drift (gentle wind effect - swaying)
+                snowflake.position.x += data.driftSpeed * dt;
+                
+                // Slight vertical wobble for natural movement
+                const wobble = Math.sin(clock.elapsedTime * 2 + snowflake.id) * 0.1;
+                snowflake.position.x += wobble * dt;
+                
+                // Rotation for natural tumbling effect
+                snowflake.rotation.x += data.rotationSpeed * dt * 0.5;
+                snowflake.rotation.y += data.rotationSpeed * dt * 0.3;
+                snowflake.rotation.z += data.rotationSpeed * dt * 0.4;
+                
+                // Fade based on distance from camera (depth effect)
+                const distanceFromCamera = snowflake.position.distanceTo(camera.position);
+                const maxDistance = 80;
+                const fadeStart = 50;
+                if (distanceFromCamera > fadeStart) {
+                    const fadeFactor = 1 - Math.min((distanceFromCamera - fadeStart) / (maxDistance - fadeStart), 1);
+                    snowflake.material.opacity = data.opacity * fadeFactor;
+                } else {
+                    snowflake.material.opacity = data.opacity;
+                }
+                
+                // Reset when below camera view (continuous loop)
+                if (snowflake.position.y < bottomY) {
+                    // Reset to random position above camera
+                    snowflake.position.y = topY + Math.random() * 30;
+                    snowflake.position.x = (Math.random() - 0.5) * 120;
+                    snowflake.position.z = (Math.random() - 0.5) * 120;
+                    // Reset rotation for variety
+                    snowflake.rotation.set(
+                        Math.random() * Math.PI * 2,
+                        Math.random() * Math.PI * 2,
+                        Math.random() * Math.PI * 2
+                    );
+                }
+                
+                // Keep snowflakes within reasonable horizontal bounds
+                if (Math.abs(snowflake.position.x) > 70) {
+                    snowflake.position.x = (Math.random() - 0.5) * 120;
+                }
+            });
         }
 
         init();
