@@ -99,6 +99,27 @@
             overflow: hidden; opacity: 0; /* Hidden by default but functional */
             pointer-events: none;
         }
+
+        /* HTTPS Warning */
+        #https-warning {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 100, 100, 0.95);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 13px;
+            z-index: 9999;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 90%;
+        }
+        #https-warning.show {
+            display: block;
+        }
     </style>
     
     <style>
@@ -134,6 +155,11 @@
             </label>
             <div class="hint-text">Nhấn phím 'H' để ẩn các nút điều khiển</div>
         </div>
+    </div>
+
+    <!-- HTTPS Warning -->
+    <div id="https-warning">
+        ⚠️ Camera requires HTTPS! Please use HTTPS://rag247fion.me instead of HTTP://
     </div>
 
     <!-- Webcam hidden structure -->
@@ -541,22 +567,132 @@
             webcamCtx = webcamCanvas.getContext('2d');
             webcamCanvas.width = 160; webcamCanvas.height = 120;
 
-            const vision = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
-            );
-            handLandmarker = await HandLandmarker.createFromOptions(vision, {
-                baseOptions: {
-                    modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-                    delegate: "GPU"
-                },
-                runningMode: "VIDEO",
-                numHands: 1
-            });
-            
-            if (navigator.mediaDevices?.getUserMedia) {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
-                video.addEventListener("loadeddata", predictWebcam);
+            // Check if HTTPS is required
+            const isSecureContext = window.isSecureContext || location.protocol === 'https:';
+            if (!isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                // Show warning banner
+                const warning = document.getElementById('https-warning');
+                if (warning) {
+                    warning.classList.add('show');
+                    // Try to redirect to HTTPS
+                    if (location.hostname === 'rag247fion.me') {
+                        warning.innerHTML = '⚠️ Redirecting to HTTPS...<br>Camera requires secure connection.';
+                        setTimeout(() => {
+                            window.location.href = 'https://' + location.hostname + location.pathname;
+                        }, 2000);
+                    }
+                }
+                showCameraError('⚠️ Camera requires HTTPS!<br>Your site is on HTTP. Please use HTTPS or localhost.');
+                console.error('Camera access requires HTTPS. Current protocol:', location.protocol);
+                return;
+            } else {
+                // Hide warning if HTTPS
+                const warning = document.getElementById('https-warning');
+                if (warning) warning.classList.remove('show');
+            }
+
+            try {
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+                );
+                handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                        delegate: "GPU"
+                    },
+                    runningMode: "VIDEO",
+                    numHands: 1
+                });
+                
+                if (navigator.mediaDevices?.getUserMedia) {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ 
+                            video: { 
+                                width: { ideal: 640 }, 
+                                height: { ideal: 480 },
+                                facingMode: 'user'
+                            } 
+                        });
+                        video.srcObject = stream;
+                        video.addEventListener("loadeddata", predictWebcam);
+                        hideCameraError();
+                        console.log('✅ Camera access granted');
+                    } catch (err) {
+                        handleCameraError(err);
+                    }
+                } else {
+                    showCameraError('⚠️ Camera API not supported in this browser.<br>Please use Chrome, Edge, or Firefox.');
+                }
+            } catch (err) {
+                console.error('MediaPipe initialization error:', err);
+                showCameraError('⚠️ Failed to initialize hand tracking.<br>Check browser console for details.');
+            }
+        }
+
+        function handleCameraError(err) {
+            let errorMsg = '⚠️ Camera access failed: ';
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errorMsg = '⚠️ Camera permission denied.<br>Please allow camera access and refresh the page.';
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                errorMsg = '⚠️ No camera found.<br>Please connect a camera and refresh.';
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                errorMsg = '⚠️ Camera is being used by another app.<br>Please close other apps and refresh.';
+            } else if (err.name === 'OverconstrainedError') {
+                errorMsg = '⚠️ Camera does not support required settings.<br>Trying fallback...';
+                // Try fallback without constraints
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => {
+                        video.srcObject = stream;
+                        video.addEventListener("loadeddata", predictWebcam);
+                        hideCameraError();
+                    })
+                    .catch(fallbackErr => {
+                        showCameraError('⚠️ Camera access failed completely.<br>Error: ' + fallbackErr.message);
+                    });
+                return;
+            } else {
+                errorMsg += err.message || err.name || 'Unknown error';
+            }
+            showCameraError(errorMsg);
+            console.error('Camera error:', err);
+        }
+
+        function showCameraError(message) {
+            let errorDiv = document.getElementById('camera-error');
+            if (!errorDiv) {
+                errorDiv = document.createElement('div');
+                errorDiv.id = 'camera-error';
+                errorDiv.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(0, 0, 0, 0.9);
+                    color: #ffcc66;
+                    padding: 30px 40px;
+                    border-radius: 12px;
+                    border: 2px solid #ffcc66;
+                    z-index: 10000;
+                    text-align: center;
+                    max-width: 500px;
+                    font-family: 'Times New Roman', serif;
+                    box-shadow: 0 0 30px rgba(255, 204, 102, 0.5);
+                `;
+                document.body.appendChild(errorDiv);
+            }
+            errorDiv.innerHTML = `
+                <div style="font-size: 24px; margin-bottom: 15px;">📷</div>
+                <div style="font-size: 16px; line-height: 1.6;">${message}</div>
+                <div style="margin-top: 20px; font-size: 12px; color: rgba(255, 204, 102, 0.7);">
+                    Tree will still work, but hand gestures won't function.
+                </div>
+            `;
+        }
+
+        function hideCameraError() {
+            const errorDiv = document.getElementById('camera-error');
+            if (errorDiv) {
+                errorDiv.remove();
             }
         }
 
