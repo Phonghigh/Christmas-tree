@@ -356,7 +356,17 @@
                 }
                 
                 if (mode === 'FOCUS' && this.mesh === focusTargetMesh) {
-                    this.mesh.lookAt(camera.position); 
+                    this.mesh.lookAt(camera.position);
+                    // Ensure photo orientation is correct when focused
+                    if (this.type === 'PHOTO' && this.mesh.children) {
+                        const photoMesh = this.mesh.children.find(child => child.material && child.material.map);
+                        if (photoMesh) {
+                            // Keep photo mesh orientation correct (no extra rotation)
+                            photoMesh.rotation.x = 0;
+                            photoMesh.rotation.y = 0;
+                            photoMesh.rotation.z = 0;
+                        }
+                    }
                 }
 
                 // Scale Logic
@@ -528,7 +538,7 @@
             texture.minFilter = THREE.LinearMipmapLinearFilter;
             texture.magFilter = THREE.LinearFilter;
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            texture.flipY = false; // Prevent texture flipping
+            texture.flipY = true; // Fix: Use default Three.js orientation (true = correct orientation)
             
             // Calculate aspect ratio to maintain image proportions
             const aspectRatio = texture.image.width / texture.image.height;
@@ -547,6 +557,7 @@
             });
             const photo = new THREE.Mesh(photoGeo, photoMat);
             photo.position.z = 0.04;
+            // Fix: Rotate photo to correct orientation (no rotation needed if flipY = true)
 
             const group = new THREE.Group();
             group.add(frame);
@@ -610,7 +621,7 @@
                                     texture.minFilter = THREE.LinearMipmapLinearFilter;
                                     texture.magFilter = THREE.LinearFilter;
                                     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-                                    texture.flipY = false;
+                                    texture.flipY = true; // Fix: Use default orientation
                                     
                                     // Update texture after settings
                                     texture.needsUpdate = true;
