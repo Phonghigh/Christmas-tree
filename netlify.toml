@@ -1,0 +1,10 @@
+# Netlify configuration for Christmas Tree
+[build]
+  publish = "."
+  command = "echo 'No build needed - static files'"
+
+[[redirects]]
+  from = "/*"
+  to = "/noel_v2.html"
+  status = 200
+
