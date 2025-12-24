@@ -1,0 +1,33 @@
+# ULTRA SIMPLE: This workflow just ensures files are ready
+# You still need to enable Pages manually in Settings → Pages → Deploy from branch
+# This is the most reliable method - no OIDC tokens needed!
+
+name: Prepare for GitHub Pages (Manual)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Verify files
+        run: |
+          echo "✅ Files checked!"
+          echo "📁 HTML file: $([ -f 'noel_v2.html' ] && echo 'Found' || echo 'Missing')"
+          echo "📁 Image folder: $([ -d 'image' ] && echo 'Found' || echo 'Missing')"
+          ls -la
+      
+      - name: Instructions
+        run: |
+          echo "::notice::Now go to Settings → Pages → Deploy from branch → main → / (root)"
+          echo "::notice::Your site will be at: https://YOUR-USERNAME.github.io/REPO-NAME/noel_v2.html"
+

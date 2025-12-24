@@ -59,11 +59,28 @@ Copy the URL and share it with your friend! 🎉
 
 ## 🔧 If You Still Want to Use GitHub Actions
 
-If you prefer the Actions method:
+**⚠️ If you're getting OIDC token errors**, try this:
 
-1. **FIRST**: Enable Pages in Settings → Pages → Source: **GitHub Actions**
-2. **THEN**: Push your code (the workflow will run automatically)
-3. Wait for the workflow to complete in the **Actions** tab
+### Option 1: Use Simple Workflow (No OIDC)
+1. Delete `.github/workflows/deploy.yml`
+2. Rename `.github/workflows/deploy-simple.yml` to `deploy.yml`
+3. Enable Pages: Settings → Pages → Source: **GitHub Actions**
+4. Push your code
+
+### Option 2: Use Manual Deployment (Most Reliable)
+1. Use the workflow in `.github/workflows/deploy-no-actions.yml`
+2. Enable Pages: Settings → Pages → Source: **Deploy from a branch** (NOT Actions)
+3. Branch: `main`, Folder: `/ (root)`
+4. This avoids all OIDC token issues!
+
+### Option 3: Fix OIDC Token Issue
+If you want to use the main workflow with OIDC:
+1. Go to Settings → Actions → General
+2. Scroll to "Workflow permissions"
+3. Select "Read and write permissions"
+4. Check "Allow GitHub Actions to create and approve pull requests"
+5. Save
+6. Re-run the workflow
 
 ---
 
