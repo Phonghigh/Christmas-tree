@@ -31,6 +31,8 @@ Choose one of these methods to share your Christmas tree with friends:
 
 ## 🌐 Method 3: GitHub Pages (Free, but needs GitHub account)
 
+> ⚠️ **Having workflow errors?** See `GITHUB_PAGES_MANUAL.md` for a simpler method that doesn't use Actions!
+
 ### Steps:
 
 1. **Create a GitHub account** (if you don't have one): https://github.com/
@@ -60,18 +62,44 @@ Choose one of these methods to share your Christmas tree with friends:
    - File → Add Local Repository → Select your `Christmas-tree` folder
    - Publish repository
 
-4. **Enable GitHub Pages**:
+4. **Enable GitHub Pages** (IMPORTANT - Do this FIRST!):
    - Go to your repository on GitHub
-   - Click **Settings** → **Pages**
-   - Under "Source", select **"Deploy from a branch"**
-   - Branch: **main** (or **master**)
-   - Folder: **/ (root)**
+   - Click **Settings** → **Pages** (left sidebar)
+   - Under "Build and deployment":
+     - **Source**: Select **"GitHub Actions"** (NOT "Deploy from a branch")
    - Click **Save**
+   - ⚠️ **Important**: You must enable Pages BEFORE running the workflow!
 
-5. **Wait 1-2 minutes**, then visit:
-   `https://YOUR-USERNAME.github.io/christmas-tree/noel_v2.html`
+5. **Push your code** (if you haven't already):
+   ```bash
+   git add .
+   git commit -m "Add Christmas tree"
+   git push
+   ```
 
-6. **Share this URL** with your friend!
+6. **Check the Actions tab**:
+   - Go to **Actions** tab in your repository
+   - You should see "Deploy to GitHub Pages" workflow running
+   - Wait for it to complete (green checkmark)
+
+7. **Get your URL**:
+   - Go back to **Settings** → **Pages**
+   - Your site will be available at:
+     `https://YOUR-USERNAME.github.io/christmas-tree/noel_v2.html`
+   - Or check the workflow output for the URL
+
+8. **Share this URL** with your friend!
+
+### ⚠️ Troubleshooting GitHub Pages:
+
+**If you get "Get Pages site failed" error:**
+1. Make sure you enabled Pages FIRST (Settings → Pages → Source: GitHub Actions)
+2. Wait 1-2 minutes after enabling
+3. Then push your code or manually trigger the workflow
+
+**Alternative: Use Simple Workflow**
+- If the main workflow fails, the repository includes `deploy-simple.yml`
+- You can use that workflow instead (it's more compatible)
 
 ---
 
