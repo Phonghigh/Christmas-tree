@@ -618,22 +618,28 @@
         async function loadDefaultImages() {
             // Detect current path structure for better path resolution
             const currentPath = window.location.pathname;
-            const isRoot = currentPath === '/' || currentPath === '/index.html';
+            const currentHost = window.location.hostname;
+            const isRoot = currentPath === '/' || currentPath === '/index.html' || currentPath === '/noel_v2.html';
             const isSubfolder = currentPath.includes('/Christmas-tree/');
             
             console.log('🖼️ Loading images...');
+            console.log('📍 Current URL:', window.location.href);
             console.log('📍 Current path:', currentPath);
+            console.log('📍 Current hostname:', currentHost);
             console.log('📁 Is root:', isRoot);
             console.log('📁 Is subfolder:', isSubfolder);
             
             // Try multiple path variations to handle different server configurations
+            // For custom domain (rag247fion.me), files are at root, so use root-relative paths
             const basePaths = [
-                './image/',           // Same directory
-                'image/',             // Relative to HTML
-                '/image/',            // Root relative
-                '/Christmas-tree/image/', // Full path (for custom domain)
-                '../image/',         // Parent directory
-                'https://rag247fion.me/Christmas-tree/image/' // Absolute URL for custom domain
+                './image/',           // Same directory (works for root and subfolder)
+                'image/',             // Relative to HTML (works for root)
+                '/image/',            // Root relative (works for custom domain)
+                '../image/',         // Parent directory (works if HTML is in subfolder)
+                // Only add subfolder paths if we detect we're in a subfolder
+                ...(isSubfolder ? ['/Christmas-tree/image/'] : []),
+                // Absolute URL for custom domain (fallback)
+                ...(currentHost === 'rag247fion.me' ? ['https://rag247fion.me/image/'] : [])
             ];
             
             const imageFiles = [
