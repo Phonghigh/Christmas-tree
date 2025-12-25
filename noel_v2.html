@@ -1,4 +1,4 @@
-<!-- xin chào người lạ, mình là anhduc.onlien | mình có tìm được file code noel này và fix lại, mình xin phép share mọi người ạ! -->
+
 <!DOCTYPE html>
 <html lang="VN">
 <head>
@@ -122,9 +122,10 @@
 
     <!-- Webcam hidden structure -->
     <div id="webcam-wrapper">
-        <video id="webcam" autoplay playsinline style="display:none;"></video>
+        <video id="webcam" autoplay playsinline muted webkit-playsinline style="display:none;"></video>
         <canvas id="webcam-preview"></canvas>
     </div>
+
 
     <script type="module">
         import * as THREE from 'three';
@@ -766,11 +767,54 @@
         }
 
         // --- MEDIAPIPE ---
+        // Detect iOS device
+        function isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        }
+
+        // Get front camera device ID (for iOS compatibility)
+        async function getFrontCamera() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                // Prefer front-facing camera
+                // iOS: front camera usually has label containing "front" or "FaceTime"
+                // Or we can check by trying each device
+                for (const device of videoDevices) {
+                    const label = device.label.toLowerCase();
+                    if (label.includes('front') || label.includes('facing') || 
+                        label.includes('facetime') || label.includes('user')) {
+                        console.log('📷 Found front camera:', device.label);
+                        return device.deviceId;
+                    }
+                }
+                
+                // If no front camera found by label, try first device (usually front on mobile)
+                if (videoDevices.length > 0) {
+                    console.log('📷 Using first available camera:', videoDevices[0].label);
+                    return videoDevices[0].deviceId;
+                }
+                
+                return null;
+            } catch (err) {
+                console.warn('⚠️ Could not enumerate devices:', err);
+                return null;
+            }
+        }
+
         async function initMediaPipe() {
             video = document.getElementById('webcam');
             webcamCanvas = document.getElementById('webcam-preview');
             webcamCtx = webcamCanvas.getContext('2d');
             webcamCanvas.width = 160; webcamCanvas.height = 120;
+
+            // Ensure video element has iOS-friendly attributes
+            video.setAttribute('playsinline', 'true');
+            video.setAttribute('webkit-playsinline', 'true');
+            video.setAttribute('autoplay', 'true');
+            video.setAttribute('muted', 'true'); // Required for autoplay on iOS
 
             // Check if HTTPS is required
             const isSecureContext = window.isSecureContext || location.protocol === 'https:';
@@ -811,22 +855,42 @@
                 
                 if (navigator.mediaDevices?.getUserMedia) {
                     try {
+                        // Try to get front camera device ID first (better for iOS)
+                        const frontCameraId = await getFrontCamera();
+                        
+                        // Build video constraints - prioritize front camera
+                        const videoConstraints = {
+                            facingMode: { ideal: 'user' }, // Front camera
+                            width: { ideal: 640 },
+                            height: { ideal: 480 }
+                        };
+                        
+                        // If we found a specific front camera device, use it (iOS)
+                        if (frontCameraId) {
+                            videoConstraints.deviceId = { exact: frontCameraId };
+                            console.log('📷 Using front camera device ID:', frontCameraId);
+                        }
+                        
                         const stream = await navigator.mediaDevices.getUserMedia({ 
-                            video: { 
-                                width: { ideal: 640 }, 
-                                height: { ideal: 480 },
-                                facingMode: 'user'
-                            } 
+                            video: videoConstraints
                         });
+                        
                         video.srcObject = stream;
+                        
+                        // iOS-specific: ensure video plays
+                        video.play().catch(err => {
+                            console.warn('⚠️ Video play() failed (non-critical):', err);
+                        });
+                        
                         video.addEventListener("loadeddata", predictWebcam);
                         hideCameraError();
-                        console.log('✅ Camera access granted');
+                        console.log('✅ Camera access granted (Front camera)');
+                        console.log('📱 Device:', isIOS() ? 'iOS' : 'Other');
                     } catch (err) {
                         handleCameraError(err);
                     }
                 } else {
-                    showCameraError('⚠️ Camera API not supported in this browser.<br>Please use Chrome, Edge, or Firefox.');
+                    showCameraError('⚠️ Camera API not supported in this browser.<br>Please use Chrome, Edge, or Safari.');
                 }
             } catch (err) {
                 console.error('MediaPipe initialization error:', err);
@@ -843,16 +907,33 @@
             } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
                 errorMsg = '⚠️ Camera is being used by another app.<br>Please close other apps and refresh.';
             } else if (err.name === 'OverconstrainedError') {
-                errorMsg = '⚠️ Camera does not support required settings.<br>Trying fallback...';
-                // Try fallback without constraints
-                navigator.mediaDevices.getUserMedia({ video: true })
+                errorMsg = '⚠️ Camera does not support required settings.<br>Trying fallback with front camera...';
+                // Try fallback with front camera preference (for iOS)
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: { ideal: 'user' } // Still prefer front camera
+                    } 
+                })
                     .then(stream => {
                         video.srcObject = stream;
+                        video.play().catch(e => console.warn('Video play warning:', e));
                         video.addEventListener("loadeddata", predictWebcam);
                         hideCameraError();
+                        console.log('✅ Fallback camera access granted (Front camera)');
                     })
                     .catch(fallbackErr => {
-                        showCameraError('⚠️ Camera access failed completely.<br>Error: ' + fallbackErr.message);
+                        // Last resort: try any camera
+                        navigator.mediaDevices.getUserMedia({ video: true })
+                            .then(stream => {
+                                video.srcObject = stream;
+                                video.play().catch(e => console.warn('Video play warning:', e));
+                                video.addEventListener("loadeddata", predictWebcam);
+                                hideCameraError();
+                                console.log('✅ Fallback camera access granted (Any camera)');
+                            })
+                            .catch(finalErr => {
+                                showCameraError('⚠️ Camera access failed completely.<br>Error: ' + finalErr.message);
+                            });
                     });
                 return;
             } else {
