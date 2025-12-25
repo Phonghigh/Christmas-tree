@@ -173,25 +173,69 @@
         let caneTexture; 
 
         async function init() {
-            initThree();
-            setupEnvironment(); 
-            setupLights();
-            createTextures();
-            createParticles(); 
-            createDust();
-            createSnow();     // Create falling snow effect
-            setupPostProcessing();
-            setupEvents();
-            await initMediaPipe();
-            
-            // Load default images from image folder
-            await loadDefaultImages();
-            
-            const loader = document.getElementById('loader');
-            loader.style.opacity = 0;
-            setTimeout(() => loader.remove(), 800);
+            try {
+                console.log('🎄 Initializing Christmas Tree...');
+                console.log('📍 Current URL:', window.location.href);
+                console.log('🔒 Is HTTPS:', window.location.protocol === 'https:');
+                
+                initThree();
+                console.log('✅ Three.js initialized');
+                
+                setupEnvironment(); 
+                console.log('✅ Environment setup complete');
+                
+                setupLights();
+                console.log('✅ Lights setup complete');
+                
+                createTextures();
+                console.log('✅ Textures created');
+                
+                createParticles(); 
+                console.log('✅ Particles created');
+                
+                createDust();
+                console.log('✅ Dust created');
+                
+                createSnow();     // Create falling snow effect
+                console.log('✅ Snow created');
+                
+                setupPostProcessing();
+                console.log('✅ Post-processing setup complete');
+                
+                setupEvents();
+                console.log('✅ Events setup complete');
+                
+                // Try to initialize MediaPipe (non-blocking)
+                initMediaPipe().catch(err => {
+                    console.warn('⚠️ MediaPipe initialization failed (non-critical):', err);
+                });
+                
+                // Load default images from image folder
+                await loadDefaultImages();
+                console.log('✅ Images loaded');
+                
+                const loader = document.getElementById('loader');
+                if (loader) {
+                    loader.style.opacity = 0;
+                    setTimeout(() => loader.remove(), 800);
+                }
 
-            animate();
+                animate();
+                console.log('✅ Animation started - Tree is ready!');
+            } catch (error) {
+                console.error('❌ Initialization error:', error);
+                const loader = document.getElementById('loader');
+                if (loader) {
+                    loader.innerHTML = `
+                        <div style="color: #ff6666; text-align: center;">
+                            <div style="font-size: 24px; margin-bottom: 15px;">⚠️ Error Loading</div>
+                            <div style="font-size: 14px; margin-bottom: 10px;">${error.message || 'Unknown error'}</div>
+                            <div style="font-size: 12px; color: #999;">Check browser console (F12) for details</div>
+                        </div>
+                    `;
+                }
+                throw error;
+            }
         }
 
         function initThree() {
@@ -572,13 +616,24 @@
 
         // Auto-load images from image folder with enhanced quality
         async function loadDefaultImages() {
+            // Detect current path structure for better path resolution
+            const currentPath = window.location.pathname;
+            const isRoot = currentPath === '/' || currentPath === '/index.html';
+            const isSubfolder = currentPath.includes('/Christmas-tree/');
+            
+            console.log('🖼️ Loading images...');
+            console.log('📍 Current path:', currentPath);
+            console.log('📁 Is root:', isRoot);
+            console.log('📁 Is subfolder:', isSubfolder);
+            
             // Try multiple path variations to handle different server configurations
             const basePaths = [
                 './image/',           // Same directory
                 'image/',             // Relative to HTML
                 '/image/',            // Root relative
-                '/Christmas-tree/image/', // Full path
-                '../image/'          // Parent directory
+                '/Christmas-tree/image/', // Full path (for custom domain)
+                '../image/',         // Parent directory
+                'https://rag247fion.me/Christmas-tree/image/' // Absolute URL for custom domain
             ];
             
             const imageFiles = [
@@ -630,6 +685,7 @@
                                     loadedCount++;
                                     loaded = true;
                                     console.log(`✅ Loaded image ${loadedCount}/${imageFiles.length}: ${fullPath} (${texture.image.width}x${texture.image.height})`);
+                                    console.log(`   Working path: ${basePaths[pathIndex]}`);
                                     showImageStatus(`🖼️ Loading images... (${loadedCount}/${imageFiles.length})`);
                                     resolve();
                                 },
@@ -656,9 +712,15 @@
             if (loadedCount > 0) {
                 hideImageStatus();
                 console.log(`✅ Successfully loaded ${loadedCount}/${imageFiles.length} images`);
+                if (failedPaths.length > 0) {
+                    console.warn(`⚠️ Failed to load ${failedPaths.length} images:`, failedPaths);
+                }
             } else {
                 showImageStatus(`⚠️ No images loaded! Check that 'image/' folder exists on server.`, true);
                 console.error('❌ Failed to load all images. Make sure the image/ folder is uploaded to your server.');
+                console.error('📍 Tried paths:', basePaths);
+                console.error('📍 Current URL:', window.location.href);
+                console.error('📍 Failed files:', failedPaths);
             }
         }
 
