@@ -5,10 +5,11 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+# CRITICAL: These permissions must be set at the workflow level
 permissions:
   contents: read
   pages: write
-  id-token: write
+  id-token: write  # Required for OIDC token authentication
 
 concurrency:
   group: "pages"
@@ -17,19 +18,23 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Environment must be created in Settings → Environments → New environment → github-pages
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    # Permissions must also be set at job level
     permissions:
       contents: read
       pages: write
-      id-token: write
+      id-token: write  # Required for OIDC token authentication
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          enablement: true  # Automatically enable Pages if not already enabled
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
